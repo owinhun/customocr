@@ -22,24 +22,24 @@ class Batch_Balanced_Dataset(object):
         For example, when select_data is "MJ-ST" and batch_ratio is "0.5-0.5",
         the 50% of the batch is filled with MJ and the other 50% of the batch is filled with ST.
         """
-        log = open(f'./saved_models/{opt.exp_name}/log_dataset.txt', 'a')
+        log = open('./saved_models/{}/log_dataset.txt'.format(opt['exp_name']), 'a')
         dashed_line = '-' * 80
         print(dashed_line)
         log.write(dashed_line + '\n')
-        print(f'dataset_root: {opt.train_data}\nopt.select_data: {opt.select_data}\nopt.batch_ratio: {opt.batch_ratio}')
-        log.write(f'dataset_root: {opt.train_data}\nopt.select_data: {opt.select_data}\nopt.batch_ratio: {opt.batch_ratio}\n')
-        assert len(opt.select_data) == len(opt.batch_ratio)
+        print('dataset_root: {train_data}\nopt.select_data: {select_data}\nopt.batch_ratio: {batch_ratio}'.format(**opt))
+        log.write('dataset_root: {train_data}\nopt.select_data: {select_data}\nopt.batch_ratio: {batch_ratio}\n'.format(**opt))
+        assert len(opt['select_data']) == len(opt['batch_ratio'])
 
-        _AlignCollate = AlignCollate(imgH=opt.imgH, imgW=opt.imgW, keep_ratio_with_pad=opt.PAD)
+        _AlignCollate = AlignCollate(imgH=opt['imgH'], imgW=opt['imgW'], keep_ratio_with_pad=opt['PAD'])
         self.data_loader_list = []
         self.dataloader_iter_list = []
         batch_size_list = []
         Total_batch_size = 0
-        for selected_d, batch_ratio_d in zip(opt.select_data, opt.batch_ratio):
-            _batch_size = max(round(opt.batch_size * float(batch_ratio_d)), 1)
+        for selected_d, batch_ratio_d in zip(opt['select_data'], opt['batch_ratio']):
+            _batch_size = max(round(opt['batch_size'] * float(batch_ratio_d)), 1)
             print(dashed_line)
             log.write(dashed_line + '\n')
-            _dataset, _dataset_log = hierarchical_dataset(root=opt.train_data, opt=opt, select_data=[selected_d])
+            _dataset, _dataset_log = hierarchical_dataset(root=opt['train_data'], opt=opt, select_data=[selected_d])
             total_number_dataset = len(_dataset)
             log.write(_dataset_log)
 
@@ -48,13 +48,13 @@ class Batch_Balanced_Dataset(object):
             ex) opt.total_data_usage_ratio = 1 indicates 100% usage, and 0.2 indicates 20% usage.
             See 4.2 section in our paper.
             """
-            number_dataset = int(total_number_dataset * float(opt.total_data_usage_ratio))
+            number_dataset = int(total_number_dataset * float(opt['total_data_usage_ratio']))
             dataset_split = [number_dataset, total_number_dataset - number_dataset]
             indices = range(total_number_dataset)
             _dataset, _ = [Subset(_dataset, indices[offset - length:offset])
                            for offset, length in zip(_accumulate(dataset_split), dataset_split)]
-            selected_d_log = f'num total samples of {selected_d}: {total_number_dataset} x {opt.total_data_usage_ratio} (total_data_usage_ratio) = {len(_dataset)}\n'
-            selected_d_log += f'num samples of {selected_d} per batch: {opt.batch_size} x {float(batch_ratio_d)} (batch_ratio) = {_batch_size}'
+            selected_d_log = 'num total samples of {}: {} x {} (total_data_usage_ratio) = {}\n'.format(selected_d, total_number_dataset, opt['total_data_usage_ratio'], len(_dataset))
+            selected_d_log += 'num samples of {} per batch: {} x {} (batch_ratio) = {}'.format(selected_d, opt['batch_size'], float(batch_ratio_d), _batch_size)
             print(selected_d_log)
             log.write(selected_d_log + '\n')
             batch_size_list.append(str(_batch_size))
@@ -63,7 +63,7 @@ class Batch_Balanced_Dataset(object):
             _data_loader = torch.utils.data.DataLoader(
                 _dataset, batch_size=_batch_size,
                 shuffle=True,
-                num_workers=int(opt.workers),
+                num_workers=int(opt['workers']),
                 collate_fn=_AlignCollate, pin_memory=True)
             self.data_loader_list.append(_data_loader)
             self.dataloader_iter_list.append(iter(_data_loader))
@@ -72,7 +72,7 @@ class Batch_Balanced_Dataset(object):
         batch_size_sum = '+'.join(batch_size_list)
         Total_batch_size_log += f'Total_batch_size: {batch_size_sum} = {Total_batch_size}\n'
         Total_batch_size_log += f'{dashed_line}'
-        opt.batch_size = Total_batch_size
+        opt['batch_size'] = Total_batch_size
 
         print(Total_batch_size_log)
         log.write(Total_batch_size_log + '\n')
@@ -141,7 +141,7 @@ class LmdbDataset(Dataset):
             nSamples = int(txn.get('num-samples'.encode()))
             self.nSamples = nSamples
 
-            if self.opt.data_filtering_off:
+            if self.opt['data_filtering_off']:
                 # for fast check or benchmark evaluation with no filtering
                 self.filtered_index_list = [index + 1 for index in range(self.nSamples)]
             else:
@@ -160,14 +160,14 @@ class LmdbDataset(Dataset):
                     label_key = 'label-%09d'.encode() % index
                     label = txn.get(label_key).decode('utf-8')
 
-                    if len(label) > self.opt.batch_max_length:
+                    if len(label) > self.opt['batch_max_length']:
                         # print(f'The length of the label is longer than max_length: length
                         # {len(label)}, {label} in dataset {self.root}')
                         continue
 
                     # By default, images containing characters which are not in opt.character are filtered.
                     # You can add [UNK] token to `opt.character` in utils.py instead of this filtering.
-                    out_of_char = f'[^{self.opt.character}]'
+                    out_of_char = '[^{}]'.format(self.opt['character'])
                     if re.search(out_of_char, label.lower()):
                         continue
 
@@ -192,7 +192,7 @@ class LmdbDataset(Dataset):
             buf.write(imgbuf)
             buf.seek(0)
             try:
-                if self.opt.rgb:
+                if self.opt['rgb']:
                     img = Image.open(buf).convert('RGB')  # for color image
                 else:
                     img = Image.open(buf).convert('L')
@@ -200,17 +200,17 @@ class LmdbDataset(Dataset):
             except IOError:
                 print(f'Corrupted image for {index}')
                 # make dummy image and dummy label for corrupted image.
-                if self.opt.rgb:
-                    img = Image.new('RGB', (self.opt.imgW, self.opt.imgH))
+                if self.opt['rgb']:
+                    img = Image.new('RGB', (self.opt['imgW'], self.opt['imgH']))
                 else:
-                    img = Image.new('L', (self.opt.imgW, self.opt.imgH))
+                    img = Image.new('L', (self.opt['imgW'], self.opt['imgH']))
                 label = '[dummy_label]'
 
-            if not self.opt.sensitive:
+            if not self.opt['sensitive']:
                 label = label.lower()
 
             # We only train and evaluate on alphanumerics (or pre-defined character set in train.py)
-            out_of_char = f'[^{self.opt.character}]'
+            out_of_char = '[^{}]'.format(self.opt['character'])
             label = re.sub(out_of_char, '', label)
 
         return (img, label)
@@ -237,7 +237,7 @@ class RawDataset(Dataset):
     def __getitem__(self, index):
 
         try:
-            if self.opt.rgb:
+            if self.opt['rgb']:
                 img = Image.open(self.image_path_list[index]).convert('RGB')  # for color image
             else:
                 img = Image.open(self.image_path_list[index]).convert('L')
@@ -245,10 +245,10 @@ class RawDataset(Dataset):
         except IOError:
             print(f'Corrupted image for {index}')
             # make dummy image and dummy label for corrupted image.
-            if self.opt.rgb:
-                img = Image.new('RGB', (self.opt.imgW, self.opt.imgH))
+            if self.opt['rgb']:
+                img = Image.new('RGB', (self.opt['imgW'], self.opt['imgH']))
             else:
-                img = Image.new('L', (self.opt.imgW, self.opt.imgH))
+                img = Image.new('L', (self.opt['imgW'], self.opt['imgH']))
 
         return (img, self.image_path_list[index])
 
