@@ -331,5 +331,6 @@ def train(opt):
 
         if (iteration + 1) == opt['num_iter']:
             print('end the training')
-            sys.exit()
+            break
+
         iteration += 1
