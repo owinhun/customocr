@@ -12,10 +12,9 @@ import torch.nn.init as init
 import torch.optim as optim
 import torch.utils.data
 
-sys.path.append("./customocr")
-from customocr.utils import CTCLabelConverter, CTCLabelConverterForBaiduWarpctc, AttnLabelConverter, Averager
-from customocr.dataset import hierarchical_dataset, AlignCollate, Batch_Balanced_Dataset
-from customocr.model import Model
+from utils import CTCLabelConverter, CTCLabelConverterForBaiduWarpctc, AttnLabelConverter, Averager
+from dataset import hierarchical_dataset, AlignCollate, Batch_Balanced_Dataset
+from model import Model
 
 from nltk.metrics.distance import edit_distance
 

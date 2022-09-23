@@ -1,13 +1,13 @@
 **/saved_models/*
-**/data_lmdb_release/*
-**/image_release/*
+**/word_h/*
+**/word_v/*
+**/open/*
 **/result/*
 *.mdb
 *.pth
 *.tar
 *.sh
 *.txt
-*.ipynb
 *.zip
 *.eps
 *.pdf

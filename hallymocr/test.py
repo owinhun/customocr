@@ -5,10 +5,9 @@ import sys
 import torch
 import torch.utils.data
 
-sys.path.append("./customocr")
-from customocr.utils import CTCLabelConverter, AttnLabelConverter
-from customocr.dataset import AlignCollate, RawDataset
-from customocr.model import Model
+from utils import CTCLabelConverter, AttnLabelConverter
+from dataset import AlignCollate, RawDataset
+from model import Model
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
