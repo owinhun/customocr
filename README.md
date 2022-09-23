@@ -1,4 +1,4 @@
-# customocr
+## customocr
 
 경로 설정 방법: ```customocr```의 하위 경로에 data 파일 위치
 
@@ -12,3 +12,5 @@ customocr <br>
 ├── word_v <br>
 ├── ko.txt <br>
 └── train.txt <br>
+
+- update 2022.09.23.13:00
