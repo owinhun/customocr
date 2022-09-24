@@ -230,7 +230,7 @@ def train(opt):
         for k, v in opt.items():
             opt_log += f'{str(k)}: {str(v)}\n'
         opt_log += '---------------------------------------\n'
-        print(opt_log)
+        # print(opt_log)
         opt_file.write(opt_log)
 
     """ start training """
@@ -255,7 +255,7 @@ def train(opt):
         image = image_tensors.to(device)
         text, length = converter.encode(labels, batch_max_length=opt['batch_max_length'])
         batch_size = image.size(0)
-
+        print(iteration)
         if 'CTC' in opt['Prediction']:
             preds = model(image, text)
             preds_size = torch.IntTensor([preds.size(1)] * batch_size)
