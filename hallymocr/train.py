@@ -5,7 +5,7 @@ import time
 import re
 
 import numpy as np
-
+from tqdm.auto import tqdm
 import torch
 import torch.nn.functional as F
 import torch.nn.init as init
@@ -248,88 +248,88 @@ def train(opt):
     iteration = start_iter
 
     num_iter = opt['num_iter']
+    with tqdm(total = num_iter) as pbar:
+        while (True):
+            # train part
+            image_tensors, labels = train_dataset.get_batch()
+            image = image_tensors.to(device)
+            text, length = converter.encode(labels, batch_max_length=opt['batch_max_length'])
+            batch_size = image.size(0)
+            if 'CTC' in opt['Prediction']:
+                preds = model(image, text)
+                preds_size = torch.IntTensor([preds.size(1)] * batch_size)
+                if opt['baiduCTC']:
+                    preds = preds.permute(1, 0, 2)  # to use CTCLoss format
+                    cost = criterion(preds, text, preds_size, length) / batch_size
+                else:
+                    preds = preds.log_softmax(2).permute(1, 0, 2)
+                    cost = criterion(preds, text, preds_size, length)
 
-    while (True):
-        # train part
-        image_tensors, labels = train_dataset.get_batch()
-        image = image_tensors.to(device)
-        text, length = converter.encode(labels, batch_max_length=opt['batch_max_length'])
-        batch_size = image.size(0)
-        print(iteration)
-        if 'CTC' in opt['Prediction']:
-            preds = model(image, text)
-            preds_size = torch.IntTensor([preds.size(1)] * batch_size)
-            if opt['baiduCTC']:
-                preds = preds.permute(1, 0, 2)  # to use CTCLoss format
-                cost = criterion(preds, text, preds_size, length) / batch_size
             else:
-                preds = preds.log_softmax(2).permute(1, 0, 2)
-                cost = criterion(preds, text, preds_size, length)
+                preds = model(image, text[:, :-1])  # align with Attention.forward
+                target = text[:, 1:]  # without [GO] Symbol
+                cost = criterion(preds.view(-1, preds.shape[-1]), target.contiguous().view(-1))
 
-        else:
-            preds = model(image, text[:, :-1])  # align with Attention.forward
-            target = text[:, 1:]  # without [GO] Symbol
-            cost = criterion(preds.view(-1, preds.shape[-1]), target.contiguous().view(-1))
+            model.zero_grad()
+            cost.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), opt['grad_clip'])  # gradient clipping with 5 (Default)
+            optimizer.step()
 
-        model.zero_grad()
-        cost.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), opt['grad_clip'])  # gradient clipping with 5 (Default)
-        optimizer.step()
+            loss_avg.add(cost)
 
-        loss_avg.add(cost)
+            # validation part
+            if (iteration + 1) % opt[
+                'valInterval'] == 0 or iteration == 0:  # To see training progress, we also conduct validation when 'iteration == 0'
+                elapsed_time = time.time() - start_time
+                # for log
+                with open('./saved_models/{}/log_train.txt'.format(opt['exp_name']), 'a') as log:
+                    model.eval()
+                    with torch.no_grad():
+                        valid_loss, current_accuracy, current_norm_ED, preds, confidence_score, labels, infer_time, length_of_data = validation(
+                            model, criterion, valid_loader, converter, opt)
+                    model.train()
 
-        # validation part
-        if (iteration + 1) % opt[
-            'valInterval'] == 0 or iteration == 0:  # To see training progress, we also conduct validation when 'iteration == 0'
-            elapsed_time = time.time() - start_time
-            # for log
-            with open('./saved_models/{}/log_train.txt'.format(opt['exp_name']), 'a') as log:
-                model.eval()
-                with torch.no_grad():
-                    valid_loss, current_accuracy, current_norm_ED, preds, confidence_score, labels, infer_time, length_of_data = validation(
-                        model, criterion, valid_loader, converter, opt)
-                model.train()
+                    # training loss and validation loss
+                    loss_log = f'[{iteration + 1}/{num_iter}] Train loss: {loss_avg.val():0.5f}, Valid loss: {valid_loss:0.5f}, Elapsed_time: {elapsed_time:0.5f}'
+                    loss_avg.reset()
 
-                # training loss and validation loss
-                loss_log = f'[{iteration + 1}/{num_iter}] Train loss: {loss_avg.val():0.5f}, Valid loss: {valid_loss:0.5f}, Elapsed_time: {elapsed_time:0.5f}'
-                loss_avg.reset()
+                    current_model_log = f'{"Current_accuracy":17s}: {current_accuracy:0.3f}, {"Current_norm_ED":17s}: {current_norm_ED:0.2f}'
 
-                current_model_log = f'{"Current_accuracy":17s}: {current_accuracy:0.3f}, {"Current_norm_ED":17s}: {current_norm_ED:0.2f}'
+                    # keep best accuracy model (on valid dataset)
+                    if current_accuracy > best_accuracy:
+                        best_accuracy = current_accuracy
+                        torch.save(model.state_dict(), './saved_models/{}/best_accuracy.pth'.format(opt['exp_name']))
+                    if current_norm_ED > best_norm_ED:
+                        best_norm_ED = current_norm_ED
+                        torch.save(model.state_dict(), './saved_models/{}/best_norm_ED.pth'.format(opt['exp_name']))
+                    best_model_log = f'{"Best_accuracy":17s}: {best_accuracy:0.3f}, {"Best_norm_ED":17s}: {best_norm_ED:0.2f}'
 
-                # keep best accuracy model (on valid dataset)
-                if current_accuracy > best_accuracy:
-                    best_accuracy = current_accuracy
-                    torch.save(model.state_dict(), './saved_models/{}/best_accuracy.pth'.format(opt['exp_name']))
-                if current_norm_ED > best_norm_ED:
-                    best_norm_ED = current_norm_ED
-                    torch.save(model.state_dict(), './saved_models/{}/best_norm_ED.pth'.format(opt['exp_name']))
-                best_model_log = f'{"Best_accuracy":17s}: {best_accuracy:0.3f}, {"Best_norm_ED":17s}: {best_norm_ED:0.2f}'
+                    loss_model_log = f'{loss_log}\n{current_model_log}\n{best_model_log}'
+                    print(loss_model_log)
+                    log.write(loss_model_log + '\n')
 
-                loss_model_log = f'{loss_log}\n{current_model_log}\n{best_model_log}'
-                print(loss_model_log)
-                log.write(loss_model_log + '\n')
+                    # show some predicted results
+                    dashed_line = '-' * 80
+                    head = f'{"Ground Truth":25s} | {"Prediction":25s} | Confidence Score & T/F'
+                    predicted_result_log = f'{dashed_line}\n{head}\n{dashed_line}\n'
+                    for gt, pred, confidence in zip(labels[:5], preds[:5], confidence_score[:5]):
+                        if 'Attn' in opt['Prediction']:
+                            gt = gt[:gt.find('[s]')]
+                            pred = pred[:pred.find('[s]')]
 
-                # show some predicted results
-                dashed_line = '-' * 80
-                head = f'{"Ground Truth":25s} | {"Prediction":25s} | Confidence Score & T/F'
-                predicted_result_log = f'{dashed_line}\n{head}\n{dashed_line}\n'
-                for gt, pred, confidence in zip(labels[:5], preds[:5], confidence_score[:5]):
-                    if 'Attn' in opt['Prediction']:
-                        gt = gt[:gt.find('[s]')]
-                        pred = pred[:pred.find('[s]')]
+                        predicted_result_log += f'{gt:25s} | {pred:25s} | {confidence:0.4f}\t{str(pred == gt)}\n'
+                    predicted_result_log += f'{dashed_line}'
+                    print(predicted_result_log)
+                    log.write(predicted_result_log + '\n')
 
-                    predicted_result_log += f'{gt:25s} | {pred:25s} | {confidence:0.4f}\t{str(pred == gt)}\n'
-                predicted_result_log += f'{dashed_line}'
-                print(predicted_result_log)
-                log.write(predicted_result_log + '\n')
+            # save model per 1e+5 iter.
+            if (iteration + 1) % 1e+5 == 0:
+                torch.save(
+                    model.state_dict(), './saved_models/{}/iter_{}.pth'.format(opt['exp_name'], iteration + 1))
 
-        # save model per 1e+5 iter.
-        if (iteration + 1) % 1e+5 == 0:
-            torch.save(
-                model.state_dict(), './saved_models/{}/iter_{}.pth'.format(opt['exp_name'], iteration + 1))
+            if (iteration + 1) == opt['num_iter']:
+                print('end the training')
+                break
 
-        if (iteration + 1) == opt['num_iter']:
-            print('end the training')
-            break
-
-        iteration += 1
+            iteration += 1
+            pbar.update(1)
