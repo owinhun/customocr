@@ -17,7 +17,7 @@
 
 ----
 <img width="592" alt="image" src="https://user-images.githubusercontent.com/45085563/192591102-ea290e13-6a35-4c94-b3c1-b59bdad36197.png">
->이미지를 제대로 읽었다면, json에서 crop할 부분을 가지고 와서 image를 crop , 
+> 이미지를 제대로 읽었다면, json에서 crop할 부분을 가지고 와서 image를 crop , 
 +alpha는 resize하고 싶은 크기 비율!+ 이미지가 너무 커서 (어차피 우리 모델의 인풋이 매우 작음. resize를 권장함
 
 + 제대로 되었다면, aihub/img 라는 폴더에 crop된 이미지가 생성될 것
