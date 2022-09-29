@@ -27,9 +27,9 @@ train_csv[:10].to_csv('open/train.txt', sep='\t', header=False, index=False)
 
 ###### lmdb 파일 생성, 운영체제에 맞게 주석 해제
 # # if window
-# !python ./hallymocr/create_lmdb_dataset.py --inputPath ./open/ --gtFile ./open/train.txt --outputPath ./result/train 
+# !python ./hallymocr/create_lmdb_dataset.py --inputPath ./open/ --gtFile ./open/train.txt --outputPath ./result/train --file_size <전체 데이터 크기(GB)>
 # # if linux
-# !python3 ./hallymocr/create_lmdb_dataset.py --inputPath ./open/ --gtFile ./open/train.txt --outputPath ./result/train 
+# !python3 ./hallymocr/create_lmdb_dataset.py --inputPath ./open/ --gtFile ./open/train.txt --outputPath ./result/train --file_size <전체 데이터 크기(GB)>
 ```
 
 2. ```opt['valid_data'] ```수정
