@@ -25,7 +25,7 @@ def writeCache(env, cache):
             txn.put(k, v)
 
 
-def createDataset(inputPath, gtFile, outputPath, checkValid=True):
+def createDataset(inputPath, gtFile, outputPath, file_size, checkValid=True):
     """
     Create LMDB dataset for training and evaluation.
     ARGS:
@@ -33,9 +33,13 @@ def createDataset(inputPath, gtFile, outputPath, checkValid=True):
         outputPath : LMDB output path
         gtFile     : list of image path and label
         checkValid : if true, check the validity of every image
+        file_size : total size of dataset(GiB)
     """
+
+    file_size = file_size * 1074000000
+
     os.makedirs(outputPath, exist_ok=True)
-    env = lmdb.open(outputPath, map_size=10740000000)
+    env = lmdb.open(outputPath, map_size=file_size)
     cache = {}
     cnt = 1
 
