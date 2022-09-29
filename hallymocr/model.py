@@ -13,9 +13,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-
+import torch
 import torch.nn as nn
-
+import torchvision
 from modules.transformation import TPS_SpatialTransformerNetwork
 from modules.feature_extraction import VGG_FeatureExtractor, RCNN_FeatureExtractor, ResNet_FeatureExtractor
 from modules.sequence_modeling import BidirectionalLSTM
@@ -31,9 +31,17 @@ class Model(nn.Module):
                        'Seq': opt['SequenceModeling'], 'Pred': opt['Prediction']}
 
         """ Transformation """
+
+            
         if opt['Transformation'] == 'TPS':
-            self.Transformation = TPS_SpatialTransformerNetwork(
+            if opt['FeatureExtraction'] =='VIT':
+                self.Transformation = TPS_SpatialTransformerNetwork(
+                F=opt['num_fiducial'], I_size=(opt['imgH'], opt['imgW']), I_r_size=(224, 224), I_channel_num=opt['input_channel'])
+            
+            else:
+                self.Transformation = TPS_SpatialTransformerNetwork(
                 F=opt['num_fiducial'], I_size=(opt['imgH'], opt['imgW']), I_r_size=(opt['imgH'], opt['imgW']), I_channel_num=opt['input_channel'])
+            
         else:
             print('No Transformation module specified')
 
@@ -44,6 +52,12 @@ class Model(nn.Module):
             self.FeatureExtraction = RCNN_FeatureExtractor(opt['input_channel'], opt['output_channel'])
         elif opt['FeatureExtraction'] == 'ResNet':
             self.FeatureExtraction = ResNet_FeatureExtractor(opt['input_channel'], opt['output_channel'])
+        elif opt['FeatureExtraction']=="VIT":
+            self.FeatureExtraction = torchvision.models.vit_b_16(weights = torchvision.models.ViT_B_16_Weights.DEFAULT)
+            for child in self.FeatureExtraction.children():
+                for param in child.parameters():
+                    param.requires_grad = False
+            self.FeatureExtraction.heads = torch.nn.Sequential(torch.nn.Linear(768,opt['hidden_size']*opt['batch_max_length']))
         else:
             raise Exception('No FeatureExtraction module specified')
         self.FeatureExtraction_output = opt['output_channel']  # int(imgH/16-1) * 512
@@ -74,8 +88,12 @@ class Model(nn.Module):
 
         """ Feature extraction stage """
         visual_feature = self.FeatureExtraction(input)
-        visual_feature = self.AdaptiveAvgPool(visual_feature.permute(0, 3, 1, 2))  # [b, c, h, w] -> [b, w, c, h]
-        visual_feature = visual_feature.squeeze(3)
+        if self.opt['FeatureExtraction'] == 'VIT': ##vit일 경우만 size변경 
+            visual_feature = visual_feature.view(-1,self.opt['batch_max_length'],self.opt['hidden_size'])
+            
+        else: 
+            visual_feature = self.AdaptiveAvgPool(visual_feature.permute(0, 3, 1, 2))  # [b, c, h, w] -> [b, w, c, h]
+            visual_feature = visual_feature.squeeze(3)
 
         """ Sequence modeling stage """
         if self.stages['Seq'] == 'BiLSTM':
@@ -88,5 +106,4 @@ class Model(nn.Module):
             prediction = self.Prediction(contextual_feature.contiguous())
         else:
             prediction = self.Prediction(contextual_feature.contiguous(), text, is_train, batch_max_length=self.opt['batch_max_length'])
-
         return prediction
