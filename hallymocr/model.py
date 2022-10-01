@@ -62,6 +62,7 @@ class Model(nn.Module):
             raise Exception('No FeatureExtraction module specified')
         self.FeatureExtraction_output = opt['output_channel']  # int(imgH/16-1) * 512
         self.AdaptiveAvgPool = nn.AdaptiveAvgPool2d((None, 1))  # Transform final (imgH/16-1) -> 1
+        self.modify_GAP = nn.AdaptiveAvgPool2d((None, opt['output_channel']))  # Transform 512 -> 64
 
         """ Sequence modeling"""
         if opt['SequenceModeling'] == 'BiLSTM':
@@ -92,12 +93,24 @@ class Model(nn.Module):
             visual_feature = visual_feature.view(-1,self.opt['batch_max_length'],self.opt['hidden_size'])
             
         else: 
-            visual_feature = self.AdaptiveAvgPool(visual_feature.permute(0, 3, 1, 2))  # [b, c, h, w] -> [b, w, c, h]
-            visual_feature = visual_feature.squeeze(3)
+            # print(visual_feature.shape)
+            # visual_feature = self.AdaptiveAvgPool(visual_feature.permute(0, 3, 1, 2))  # [b, c, h, w] -> [b, w, c, h]
+            # visual_feature = visual_feature.squeeze(3)      
+            # print(visual_feature.shape)
+
+
+            # print("1", visual_feature.shape)
+            visual_feature = self.modify_GAP(visual_feature.permute(0, 3, 2, 1))  # [b, c, h, w] -> [b, w, c, h]
+            # # print(visual_feature.shape[0], visual_feature.shape[1] * visual_feature.shape[2], visual_feature.shape[3])
+            visual_feature = visual_feature.reshape(visual_feature.shape[0], visual_feature.shape[1] * visual_feature.shape[2], visual_feature.shape[3])
+            # visual_feature = nn.Linear(visual_feature.shape[0], visual_feature.shape[1], opt['output_channel'])
+            # print("2", visual_feature.shape)
 
         """ Sequence modeling stage """
         if self.stages['Seq'] == 'BiLSTM':
+            # print("Before BILSTM")
             contextual_feature = self.SequenceModeling(visual_feature)
+            # print("After BILSTM")
         else:
             contextual_feature = visual_feature  # for convenience. this is NOT contextually modeled by BiLSTM
 
