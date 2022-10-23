@@ -1,7 +1,7 @@
 ## customocr
 
 ### 경로 설정 방법: ```customocr```의 하위 경로에 data 파일 위치
-
+.
 customocr <br>
 ├── font <br>
 ├── hallymocr <br>
